@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fit Boss Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d0b08; --cream:#F6F6F3; --gold:#D2B975; --muted:#9a948c;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:transparent}
+  body{
+    font-family:'Archivo',system-ui,sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    padding:14px;
+  }
+  .card{
+    background:var(--bg);
+    border-radius:18px;
+    padding:22px 26px;
+    display:flex;flex-direction:column;gap:10px;
+    width:100%;max-width:420px;
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  .row{display:flex;gap:12px;align-items:stretch}
+  .box{
+    background:#000;
+    border:1px solid rgba(246,246,243,.08);
+    border-radius:12px;
+    padding:10px 18px;
+    display:flex;align-items:center;justify-content:center;
+    min-width:104px;
+  }
+  .box .m{font-weight:900;font-size:34px;letter-spacing:1px;color:var(--cream);line-height:1}
+  .box .d{font-weight:900;font-size:46px;color:var(--cream);line-height:1}
+  .sub{display:flex;align-items:baseline;gap:14px;padding-left:4px}
+  .wd{font-weight:800;font-size:18px;letter-spacing:2px;color:var(--cream)}
+  .tm{font-weight:800;font-size:18px;letter-spacing:1px;color:var(--gold)}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="row">
+      <div class="box"><span class="m" id="mon">JUN</span></div>
+      <div class="box"><span class="d" id="day">28</span></div>
+    </div>
+    <div class="sub">
+      <span class="wd" id="wd">SUNDAY</span>
+      <span class="tm" id="tm">7:24 PM</span>
+    </div>
+  </div>
+<script>
+  const MON=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const WD=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+  function tick(){
+    const n=new Date();
+    document.getElementById('mon').textContent=MON[n.getMonth()];
+    document.getElementById('day').textContent=n.getDate();
+    document.getElementById('wd').textContent=WD[n.getDay()];
+    let h=n.getHours();const ap=h>=12?'PM':'AM';h=h%12;if(h===0)h=12;
+    const m=String(n.getMinutes()).padStart(2,'0');
+    document.getElementById('tm').textContent=`${h}:${m} ${ap}`;
+  }
+  tick();setInterval(tick,1000);
+</script>
+</body>
+</html>
