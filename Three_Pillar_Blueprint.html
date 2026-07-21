@@ -871,6 +871,63 @@ pre{max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere;}
 @media(prefers-reduced-motion:reduce){.sc-rise{opacity:1;}}
 @media(max-width:640px){.scene{padding:15vh 20px;}.sc-stage{padding:22px 18px;}}
 
+/* ================= SAFE-DEPOSIT VAULT DRAWERS =================
+   Each system becomes a sealed metal drawer in the vault wall. The drawer
+   front is what you approach; as the camera reaches it, the front slides up
+   and dissolves and the system opens out. Built at runtime in JS, so if the
+   script never runs the raw .scene content still shows. */
+.vaultbox{position:relative;max-width:1000px;margin:0 auto;padding:22vh 26px;}
+/* the sealed drawer is the section header; its contents dispense below it */
+.box-face{position:relative;z-index:2;}
+.face-plate{position:relative;}
+.vaultbox .box-inner{position:relative;z-index:1;padding:7vh 0 0;}
+/* the drawer already names the system, so drop the duplicate heading inside */
+.vaultbox .box-inner .sc-eyebrow,.vaultbox .box-inner .sc-name{display:none;}
+.drawer.opened{border-color:rgba(210,185,117,.5);}
+.drawer.opened .drawer-trim{background:linear-gradient(90deg,transparent,rgba(210,185,117,.9),transparent);}
+.drawer{position:relative;width:100%;border-radius:20px;overflow:hidden;padding:46px 48px;
+  background:linear-gradient(159deg,#333a44 0%,#20252e 46%,#111419 100%);
+  border:1px solid rgba(210,185,117,.28);
+  box-shadow:0 60px 130px -55px #000,inset 0 1px 0 rgba(255,255,255,.12),
+             inset 0 -3px 8px rgba(0,0,0,.6);}
+/* brushed-metal sheen raking across the steel */
+.drawer::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(114deg,rgba(255,255,255,.07),transparent 28%,transparent 72%,rgba(255,255,255,.035));}
+.drawer-trim{position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(210,185,117,.55),transparent);}
+.drawer-trim.t{top:15px;} .drawer-trim.b{bottom:15px;}
+.rivet{position:absolute;width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#98a0aa,#282d34 72%);box-shadow:inset 0 0 2px #000,0 1px 1px rgba(0,0,0,.5);}
+.rivet.tl{top:17px;left:17px;} .rivet.tr{top:17px;right:17px;}
+.rivet.bl{bottom:17px;left:17px;} .rivet.br{bottom:17px;right:17px;}
+.drawer-row{display:flex;align-items:center;gap:34px;position:relative;z-index:1;}
+.box-num{font-family:'Archivo',Arial,sans-serif;font-weight:900;font-size:clamp(64px,11vw,132px);
+  line-height:.78;letter-spacing:-.04em;color:transparent;-webkit-text-stroke:2px rgba(210,185,117,.62);}
+.box-meta{flex:1;min-width:0;}
+.box-pillar{font-family:'Archivo',Arial,sans-serif;font-weight:900;font-size:11px;letter-spacing:.3em;
+  text-transform:uppercase;color:var(--gold);margin-bottom:13px;}
+.box-emboss{font-family:'Archivo',Arial,sans-serif;font-weight:900;text-transform:uppercase;
+  font-size:clamp(26px,4.4vw,52px);line-height:.9;letter-spacing:-.01em;color:#e9edf1;
+  text-shadow:0 1px 0 rgba(255,255,255,.13),0 -1px 1px rgba(0,0,0,.65);}
+.box-status{margin-top:24px;display:inline-flex;align-items:center;gap:9px;
+  font-family:'Archivo',Arial,sans-serif;font-weight:900;font-size:10px;letter-spacing:.26em;
+  text-transform:uppercase;color:#c0392b;}
+.box-status i{width:7px;height:7px;border-radius:50%;background:#c0392b;box-shadow:0 0 10px #c0392b;}
+.box-dial{width:78px;height:78px;border-radius:50%;flex:none;position:relative;
+  background:radial-gradient(circle at 38% 34%,#3d434c,#12151a 74%);
+  border:2px solid rgba(210,185,117,.42);box-shadow:inset 0 3px 7px rgba(0,0,0,.7),0 1px 0 rgba(255,255,255,.05);}
+.box-dial::before{content:"";position:absolute;left:0;right:0;margin:auto;top:9px;
+  width:3px;height:27px;background:var(--gold);border-radius:2px;box-shadow:0 0 8px rgba(210,185,117,.6);}
+.box-dial::after{content:"";position:absolute;inset:0;margin:auto;width:8px;height:8px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#aab2bc,#333),transparent;}
+@media(max-width:640px){
+  .vaultbox{padding:0 20px;}
+  .drawer{padding:30px 26px;border-radius:16px;}
+  .drawer-row{gap:18px;}
+  .box-dial{display:none;}
+  .box-num{font-size:clamp(52px,17vw,86px);}
+}
+
 
 /* ---------- rotating 3D carousel (re-skinned from uiverse ilkhoeri) ---------- */
 .carou{width:100%;height:340px;position:relative;display:flex;align-items:center;
@@ -2082,10 +2139,87 @@ function tableUpdate(){
   });
 }
 
+/* ---- safe-deposit vault drawers: each system stays sealed until you reach it ---- */
+const VBOX = [];
+function buildVaultBoxes(){
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (typeof gsap === 'undefined') return;
+  document.querySelectorAll('.scene').forEach((scene, idx) => {
+    if (scene.dataset.vault) return;
+    scene.dataset.vault = '1';
+    scene.classList.add('vaultbox');
+    const eyebrow = scene.querySelector('.sc-eyebrow');
+    const nameEl  = scene.querySelector('.sc-name');
+    const etext  = eyebrow ? eyebrow.textContent : '';
+    const pillar = etext.split('·')[0].trim() || 'System';
+    const m   = etext.match(/(\d+)/);
+    const num = (m ? m[1] : String(idx + 1)).padStart(2, '0');
+    const name = nameEl ? nameEl.innerHTML : '';
+    /* lift the real content into an inner shell, completely untouched */
+    const inner = document.createElement('div');
+    inner.className = 'box-inner';
+    while (scene.firstChild) inner.appendChild(scene.firstChild);
+    /* the drawer now owns the reveal, so retire the old per-line fade to avoid a fight */
+    inner.querySelectorAll('.sc-rise').forEach(el => { el.classList.remove('sc-rise'); el.dataset.rev = '1'; });
+    inner.style.opacity = '0';
+    /* the sealed drawer front you approach */
+    const face = document.createElement('div');
+    face.className = 'box-face';
+    face.innerHTML =
+      '<div class="face-plate"><div class="drawer">' +
+        '<span class="drawer-trim t"></span><span class="drawer-trim b"></span>' +
+        '<i class="rivet tl"></i><i class="rivet tr"></i><i class="rivet bl"></i><i class="rivet br"></i>' +
+        '<div class="drawer-row">' +
+          '<div class="box-num">' + num + '</div>' +
+          '<div class="box-meta">' +
+            '<div class="box-pillar">' + pillar + '</div>' +
+            '<div class="box-emboss">' + name + '</div>' +
+            '<div class="box-status"><i></i><span>Sealed</span></div>' +
+          '</div>' +
+          '<div class="box-dial"></div>' +
+        '</div>' +
+      '</div></div>';
+    /* drawer front on top, its dispensed contents below */
+    scene.appendChild(face);
+    scene.appendChild(inner);
+    const drawer = face.querySelector('.drawer');
+    const dial   = face.querySelector('.box-dial');
+    const status = face.querySelector('.box-status');
+    const label  = status.querySelector('span');
+    const kids = [...inner.children];
+    const tl = gsap.timeline({ paused: true });
+    /* the dial turns, the drawer eases open, its contents rise out */
+    tl.to(dial, { rotation: 160, duration: 1, ease: EZ.inOutQuart, transformOrigin: '50% 50%' }, 0);
+    tl.to(drawer, { y: -8, duration: .6, ease: EZ.outQuart }, .1);
+    tl.to(inner, { opacity: 1, duration: .4, ease: EZ.outQuad }, .18);
+    tl.fromTo(kids, { y: 54, opacity: 0 }, { y: 0, opacity: 1, duration: 1, stagger: .11, ease: EZ.outExpo }, .22);
+    VBOX.push({ scene, tl, drawer, status, label, open: false });
+  });
+  vboxUpdate();
+}
+function vboxUpdate(){
+  const vh = innerHeight;
+  VBOX.forEach(v => {
+    const r = v.drawer.getBoundingClientRect();
+    /* the drawer opens as its front settles through the upper third of the screen */
+    let p = (vh * 0.54 - r.top) / (vh * 0.4);
+    p = p < 0 ? 0 : p > 1 ? 1 : p;
+    v.tl.progress(p);
+    const open = p > 0.45;
+    if (open !== v.open){
+      v.open = open;
+      if (v.label) v.label.textContent = open ? 'Open' : 'Sealed';
+      if (v.status) v.status.style.color = open ? 'var(--gold)' : '#c0392b';
+      if (v.drawer) v.drawer.classList.toggle('opened', open);
+    }
+  });
+}
+
+buildVaultBoxes();
 buildTableAssembly();
 buildDgmReveal();
 buildScenes();
-addEventListener('load', () => { buildTableAssembly(); buildDgmReveal(); buildScenes(); });
+addEventListener('load', () => { buildVaultBoxes(); buildTableAssembly(); buildDgmReveal(); buildScenes(); });
 
 window.__assemble = function(node){
   const RMx = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2175,7 +2309,7 @@ function assembleUpdate(){
 function queueAssemble(){
   if (aQueued) return;
   aQueued = true;
-  requestAnimationFrame(() => { aQueued = false; assembleUpdate(); tableUpdate(); dgmUpdate(); sceneUpdate(); });
+  requestAnimationFrame(() => { aQueued = false; assembleUpdate(); tableUpdate(); dgmUpdate(); sceneUpdate(); vboxUpdate(); });
 }
 addEventListener('scroll', queueAssemble, { passive: true });
 addEventListener('resize', queueAssemble);
