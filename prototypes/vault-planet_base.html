@@ -1,0 +1,248 @@
+<style>
+  :root{
+    --bg:#050505; --ink:#f3f6f6; --dim:rgba(243,246,246,.55);
+    --gold:#D2B975; --hot:#ffe6a6; --deepgold:#BFA35F; --steel:#8198b0;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:auto;}
+  body{background:var(--bg);color:var(--ink);
+    font-family:'Archivo Black','Arial Black',system-ui,sans-serif;}
+  /* the fixed cinema; a tall spacer below drives the scroll */
+  #stage{position:fixed;inset:0;overflow:hidden;z-index:1;}
+  #scroller{position:relative;z-index:0;height:1700vh;}
+  canvas#sky{position:absolute;inset:0;width:100%;height:100%;display:block;}
+  #field{position:absolute;inset:0;pointer-events:none;}
+  .chip{position:absolute;top:0;left:0;width:60px;height:60px;margin:-30px 0 0 -30px;
+    border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 38% 32%,#20242b,#0a0c10 78%);
+    border:1px solid rgba(210,185,117,.32);
+    box-shadow:0 10px 26px -12px #000, inset 0 1px 0 rgba(255,255,255,.08);
+    will-change:transform,opacity;}
+  .chip svg{width:26px;height:26px;stroke:var(--gold);fill:none;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.9;transition:stroke .3s,opacity .3s;}
+  .chip.active{border-color:var(--gold);
+    background:radial-gradient(circle at 38% 32%,#3a3020,#141013 78%);
+    box-shadow:0 0 0 1px rgba(210,185,117,.6),0 0 40px 4px rgba(210,185,117,.5);}
+  .chip.active svg{stroke:var(--hot);opacity:1;}
+  /* a thin dial tick around each node, echoing the safe dial */
+  .chip .ring{position:absolute;inset:-6px;border-radius:50%;border:1px solid rgba(210,185,117,.14);}
+  .chip.active .ring{border-color:rgba(210,185,117,.4);}
+
+  #card{position:fixed;left:50%;bottom:9vh;width:min(440px,86vw);transform:translateX(-50%) translateY(14px);
+    pointer-events:none;opacity:0;transition:opacity .45s, transform .45s;z-index:60;}
+  #card.on{opacity:1;transform:translateX(-50%) translateY(0);}
+  #card .ey{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold);margin-bottom:9px;}
+  #card .nm{font-size:clamp(28px,4vw,40px);line-height:.95;text-transform:uppercase;letter-spacing:-.01em;
+    color:#fff;margin-bottom:16px;text-shadow:0 2px 30px rgba(0,0,0,.6);}
+  #card .rows{display:flex;gap:26px;flex-wrap:wrap;}
+  #card .leak,#card .fix{font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:14px;
+    line-height:1.45;flex:1;min-width:150px;}
+  #card b{font-family:'Archivo Black','Arial Black',sans-serif;font-weight:400;
+    display:block;font-size:9px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:5px;}
+  #card .leak{color:rgba(243,246,246,.52);} #card .leak b{color:#c0392b;}
+  #card .fix{color:#fff;} #card .fix b{color:var(--gold);}
+
+  .hud{position:fixed;z-index:40;pointer-events:none;font-size:11px;letter-spacing:.28em;
+    text-transform:uppercase;color:var(--dim);}
+  .hud.tl{top:26px;left:28px;color:var(--gold);}
+  .hud.tr{top:26px;right:28px;text-align:right;line-height:1.5;}
+  /* progress rail down the side: which of the 15 you're on */
+  #rail{position:fixed;right:30px;top:50%;transform:translateY(-50%);z-index:40;
+    display:flex;flex-direction:column;gap:9px;pointer-events:none;}
+  #rail i{width:6px;height:6px;border-radius:50%;background:rgba(243,246,246,.16);transition:all .3s;}
+  #rail i.on{background:var(--gold);box-shadow:0 0 10px var(--gold);transform:scale(1.5);}
+  #rail i.seg{margin-top:6px;}
+  .hint{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:40;
+    font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:12px;letter-spacing:.02em;
+    color:rgba(243,246,246,.4);pointer-events:none;transition:opacity .4s;}
+  @media(max-width:640px){ .chip{width:50px;height:50px;margin:-25px 0 0 -25px;} .chip svg{width:22px;height:22px;} #rail{right:16px;} .hud{font-size:9px;} }
+</style>
+
+<div id="stage">
+  <canvas id="sky"></canvas>
+  <div id="field"></div>
+  <div class="hud tl">Fit Boss · Inside the Vault</div>
+  <div class="hud tr">Fifteen systems<br>keep it sealed</div>
+  <div id="rail"></div>
+  <div class="hint" id="hint">Scroll to descend into the orbit ↓</div>
+  <div id="card">
+    <div class="ey" id="c-ey">Marketing · System 01</div>
+    <div class="nm" id="c-nm">Market Clarity</div>
+    <div class="rows">
+      <div class="leak"><b>The leak</b><span id="c-leak">—</span></div>
+      <div class="fix"><b>The fix</b><span id="c-fix">—</span></div>
+    </div>
+  </div>
+</div>
+<div id="scroller"></div>
+
+<script>
+const G = {
+  target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/>',
+  layers:'<path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+  magnet:'<path d="M7 4v7a5 5 0 0 0 10 0V4"/><path d="M4 4h6M14 4h6M4 4v4M20 4v4"/>',
+  growth:'<path d="M3 17l5-5 4 3 7-8"/><path d="M17 4h3v3"/>',
+  bars:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  cal:'<rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 9h17M8 3v4M16 3v4"/>',
+  funnel:'<path d="M3 4h18l-7 8v7l-4 2v-9L3 4z"/>',
+  close:'<path d="M4 12l5 5L20 6"/><circle cx="12" cy="12" r="10.4" opacity=".35"/>',
+  loop:'<path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2"/><path d="M20 4v4h-4M4 20v-4h4"/>',
+  gauge:'<path d="M4 15a8 8 0 0 1 16 0"/><path d="M12 15l4-4"/>',
+  card:'<rect x="2.5" y="5.5" width="19" height="13" rx="2.4"/><path d="M2.5 10h19M6 15h4"/>',
+  gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  box:'<path d="M12 3 3 7.5v9L12 21l9-4.5v-9L12 3z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
+  shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/>',
+  check:'<path d="M4 6h16M4 12h16M4 18h10"/><path d="M18 17l1.5 1.5L23 15"/>',
+};
+const SYS = [
+  {p:0,n:'Market Clarity',   leak:'Picking a niche feels like turning people away.', fix:'Target a past version of yourself.',             i:G.target},
+  {p:0,n:'Content Strategy', leak:'You post and nothing comes back.',                fix:'Give each piece a job. Package it to perform.',  i:G.layers},
+  {p:0,n:'Lead Generation',  leak:'No clear path from viewer to lead.',              fix:'Teach a problem, solve it with a lead magnet.',  i:G.magnet},
+  {p:0,n:'Audience Growth',  leak:'Stuck in 200-view jail.',                         fix:'Study winning formats. Pick two and master them.',i:G.growth},
+  {p:0,n:'Content KPIs',     leak:'You can’t improve what you don’t measure.',       fix:'Track watch time, retention, shares, saves.',    i:G.bars},
+  {p:1,n:'Booking Calls',    leak:'A full calendar that never fills with calls.',    fix:'DM everyone who likes, comments, or follows.',   i:G.cal},
+  {p:1,n:'Pipeline',         leak:'Leads fall through the cracks.',                  fix:'Track every lead at every stage.',               i:G.funnel},
+  {p:1,n:'Closing',          leak:'Great calls that don’t convert.',                 fix:'Run one process. Sell the transformation.',      i:G.close},
+  {p:1,n:'Follow-Up',        leak:'The fortune is in the follow-up.',                fix:'Track every convo. Give yourself a reason.',     i:G.loop},
+  {p:1,n:'Sales KPIs',       leak:'You’re guessing at what’s working.',              fix:'Track DMs, show rate, close rate.',              i:G.gauge},
+  {p:2,n:'Payment Systems',  leak:'Money moves but never reaches you on time.',      fix:'Stripe auto-renewal on autopilot.',              i:G.card},
+  {p:2,n:'Tech Setup',       leak:'Tools that don’t talk to each other.',            fix:'Three tools, wired to work as one.',             i:G.gear},
+  {p:2,n:'Client Delivery',  leak:'Every client gets a different experience.',       fix:'Same steps, same result, every time.',           i:G.box},
+  {p:2,n:'Retention',        leak:'You fill the top while the bottom leaks.',        fix:'A system that makes them stay.',                 i:G.shield},
+  {p:2,n:'Daily Operations', leak:'Busy all day, nothing moves forward.',            fix:'The same short list, run every day.',            i:G.check},
+];
+const PILLAR = ['Marketing','Sales','Management'];
+const N = SYS.length;
+
+const rings = [ {r:200}, {r:294}, {r:392} ];
+/* continuous placement: each system is the next 72° step around the orbit, stepping
+   out one ring per pillar — so the camera sweeps evenly icon-to-icon, never jumping */
+SYS.forEach((s,i)=>{ s.k=i%5; s.a0 = i*(2*Math.PI/5); });
+// rotation that brings each system to the front-centre, unwrapped so we sweep the short way
+const ryT=[]; let prev=0;
+SYS.forEach((s,i)=>{ let t=-Math.PI/2 - s.a0; while(t-prev>Math.PI)t-=2*Math.PI; while(t-prev<-Math.PI)t+=2*Math.PI; ryT.push(t); prev=t; });
+
+const field=document.getElementById('field');
+const chips=SYS.map((s)=>{ const el=document.createElement('div'); el.className='chip';
+  el.innerHTML=`<span class="ring"></span><svg viewBox="0 0 24 24">${s.i}</svg>`; field.appendChild(el); return el; });
+const rail=document.getElementById('rail');
+const dots=SYS.map((s,i)=>{ const d=document.createElement('i'); if(i&&SYS[i].p!==SYS[i-1].p)d.className='seg'; rail.appendChild(d); return d; });
+
+const cv=document.getElementById('sky'), ctx=cv.getContext('2d');
+let W,H,CX,CY,DPR=Math.min(2,devicePixelRatio||1);
+function resize(){ W=innerWidth;H=innerHeight;CX=W/2;CY=H*0.5;cv.width=W*DPR;cv.height=H*DPR; }
+addEventListener('resize',resize); resize();
+
+const SPH=[]; const NP=680, SR=118;
+for(let i=0;i<NP;i++){ const y=1-(i/(NP-1))*2, rad=Math.sqrt(1-y*y), th=i*2.399963;
+  SPH.push([Math.cos(th)*rad,y,Math.sin(th)*rad]); }
+
+const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const smooth=t=>t*t*(3-2*t);
+const clamp01=t=>t<0?0:t>1?1:t;
+
+let scrollU=0;
+function onScroll(){ const max=document.documentElement.scrollHeight-innerHeight; scrollU=clamp01(scrollY/max); }
+addEventListener('scroll',onScroll,{passive:true}); onScroll();
+
+const FOV=760, CAMZ=560;
+function proj(x,y,z,ry,rx){
+  let c=Math.cos(ry),s=Math.sin(ry); let x1=x*c-z*s, z1=x*s+z*c, y1=y;
+  c=Math.cos(rx);s=Math.sin(rx); let y2=y1*c-z1*s, z2=y1*s+z1*c;
+  const zz=z2+CAMZ, sc=FOV/zz; return [CX+x1*sc, CY+y2*sc, sc, z2];
+}
+
+const card=document.getElementById('card'), hint=document.getElementById('hint');
+let shownK=-1;
+function showCard(k){
+  if(k===shownK)return; shownK=k; const s=SYS[k];
+  document.getElementById('c-ey').textContent=PILLAR[s.p]+' · System '+String(k+1).padStart(2,'0');
+  document.getElementById('c-nm').textContent=s.n;
+  document.getElementById('c-leak').textContent=s.leak;
+  document.getElementById('c-fix').textContent=s.fix;
+}
+
+let tAmb=0;
+function frame(ts){
+  tAmb+=0.016;
+  const u=scrollU;
+  const est=clamp01(u/0.10);                 // establishing fly-in
+  const u2=clamp01((u-0.10)/0.90);           // guided tour
+  const tourPos=u2*(N-1);
+  const k=Math.max(0,Math.min(N-1,Math.round(tourPos)));
+  const kf=Math.floor(tourPos), frac=tourPos-kf;
+
+  // rotation sweeps between stations; establishing adds a slow ambient turn
+  let ry;
+  if(u<0.10){ ry=ryT[0] + (1-est)* -1.2 + tAmb*0.05*(1-est); }
+  else { ry = ryT[kf] + (ryT[Math.min(kf+1,N-1)]-ryT[kf])*ease(frac); }
+  const rx=0.34 - 0.12*smooth(clamp01((u-0.10)/0.15));   // tilt eases toward head-on as we descend
+
+  // focus zoom: relaxed while travelling, punches in at each station
+  const dz=Math.abs(tourPos-k);
+  const focus = u<0.10 ? 0 : smooth(1-clamp01(dz/0.42));
+  const Z = (0.72+0.30*est) + focus*1.85;                 // fly-in, then per-station zoom
+  const others = 1 - 0.72*focus;                          // dim the rest while one is open
+
+  // focus point glides continuously between consecutive systems (no snap at mid-point)
+  const ia=Math.max(0,Math.min(N-1,Math.floor(tourPos))), ib=Math.min(N-1,ia+1), fe=ease(frac);
+  const A=SYS[ia], ra=rings[A.p].r, pA=proj(Math.cos(A.a0)*ra,0,Math.sin(A.a0)*ra,ry,rx);
+  const B=SYS[ib], rb=rings[B.p].r, pB=proj(Math.cos(B.a0)*rb,0,Math.sin(B.a0)*rb,ry,rx);
+  const fx=pA[0]+(pB[0]-pA[0])*fe, fy=pA[1]+(pB[1]-pA[1])*fe;
+  const tx=CX-fx*Z, ty=CY-fy*Z;                            // move focus to centre
+
+  ctx.setTransform(DPR*Z,0,0,DPR*Z, DPR*tx, DPR*ty);
+  ctx.clearRect(-tx/Z, -ty/Z, W/Z, H/Z);
+
+  // molten gold core glow (brighter, warmer) — eases down when a system is open
+  const gA=1-0.5*focus;
+  const g=ctx.createRadialGradient(CX,CY,0,CX,CY,SR*3.2);
+  g.addColorStop(0,`rgba(255,230,166,${(0.55*gA).toFixed(3)})`);
+  g.addColorStop(.16,`rgba(210,185,117,${(0.32*gA).toFixed(3)})`);
+  g.addColorStop(.5,`rgba(210,185,117,${(0.08*gA).toFixed(3)})`);
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(CX,CY,SR*3.2,0,7); ctx.fill();
+
+  // rings (tilted)
+  rings.forEach((rg,ri)=>{ ctx.beginPath();
+    for(let a=0;a<=72;a++){ const ang=a/72*Math.PI*2;
+      const P=proj(Math.cos(ang)*rg.r,0,Math.sin(ang)*rg.r,ry,rx);
+      a===0?ctx.moveTo(P[0],P[1]):ctx.lineTo(P[0],P[1]); }
+    ctx.closePath(); ctx.strokeStyle=`rgba(210,185,117,${(0.06+ri*0.02)*others})`;
+    ctx.lineWidth=1/Z; ctx.stroke(); });
+
+  // particle core — molten, front brighter
+  const pts=SPH.map(p=>proj(p[0]*SR,p[1]*SR,p[2]*SR,ry+tAmb*0.06,rx)).sort((a,b)=>a[3]-b[3]);
+  for(const P of pts){ const d=(P[3]+SR)/(2*SR); const al=(0.22+d*0.78);
+    ctx.beginPath(); ctx.arc(P[0],P[1],(0.7+d*1.7)/Z,0,7);
+    const mix=Math.round(117+ d*90); // warm toward hot-gold in front
+    ctx.fillStyle=`rgba(255,${Math.round(210+d*20)},${mix},${al})`; ctx.fill(); }
+  ctx.beginPath(); ctx.arc(CX,CY,SR*0.9,0,7); ctx.strokeStyle='rgba(255,240,205,.14)'; ctx.lineWidth=2/Z; ctx.stroke();
+
+  // chips (DOM) share the same focus transform
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  SYS.forEach((s,i)=>{
+    const rg=rings[s.p];
+    const P=proj(Math.cos(s.a0)*rg.r,0,Math.sin(s.a0)*rg.r,ry,rx);
+    const sx=(P[0]-fx)*Z+CX, sy=(P[1]-fy)*Z+CY;   // apply focus
+    const depth=clamp01((P[3]+rg.r)/(2*rg.r));
+    const chip=chips[i];
+    const isActive = (i===k && focus>0.4);
+    const sc=(0.55+depth*0.6)*Z*(isActive?1.15:1);
+    chip.style.transform=`translate(${sx}px,${sy}px) scale(${sc.toFixed(3)})`;
+    // the focused system is always fully lit; the rest fade back while it's open
+    let op = isActive ? 1 : (0.28+depth*0.72)*others;
+    chip.style.opacity=op.toFixed(3);
+    chip.style.zIndex=100+Math.round(P[3]);
+    chip.classList.toggle('active',isActive);
+    dots[i].classList.toggle('on', i===k && focus>0.4);
+  });
+
+  // the readout
+  if(focus>0.55){ showCard(k); card.classList.add('on'); } else { card.classList.remove('on'); }
+  hint.style.opacity = u>0.03?0:1;
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
